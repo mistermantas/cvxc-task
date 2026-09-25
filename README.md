@@ -1,14 +1,23 @@
 # Customer CSV import
 
-RV Transport coding challenge 1. A Laravel 13, Inertia/Vue and Tailwind app for reviewing a customer CSV before saving valid rows.
+RV Transport coding challenge: a small Laravel app for reviewing customer records before importing them. Upload a CSV, inspect valid and rejected rows, then confirm the import. The interface is built with Inertia, Vue and Tailwind.
+
+![Customer import preview](docs/screenshots/desktop-preview.png)
+
+[Mobile preview](docs/screenshots/mobile-preview.png) · [Desktop result](docs/screenshots/desktop-summary.png) · [Mobile result](docs/screenshots/mobile-summary.png)
 
 ## Run locally
 
-Requirements: PHP 8.3+, Composer, Node.js, and PostgreSQL (or MySQL). Create an empty database first, then:
+Requires PHP 8.3+, Composer, Node.js and a PHP SQLite driver. From a fresh clone:
 
 ```bash
 cp .env.example .env
-# Set DB_HOST, DB_DATABASE, DB_USERNAME and DB_PASSWORD in .env.
+touch database/database.sqlite
+```
+
+In `.env`, change `DB_CONNECTION` to `sqlite` and remove the `DB_DATABASE` line. Laravel will use `database/database.sqlite`. Then run:
+
+```bash
 composer install
 php artisan key:generate
 php artisan migrate
@@ -17,20 +26,21 @@ npm run build
 php artisan serve
 ```
 
-Open `http://127.0.0.1:8000`. The sample CSV is available in the app and at `public/samples/customers.csv`. For a quick local smoke test without PostgreSQL, set `DB_CONNECTION=sqlite` and `DB_DATABASE` to the absolute path of an empty SQLite file before running migrations. Automated tests use in-memory SQLite.
+Open <http://127.0.0.1:8000> and try the [sample CSV](public/samples/customers.csv). To use PostgreSQL instead, keep the default `DB_CONNECTION=pgsql`, create a database and set the `DB_*` values in `.env` before migrating.
 
-## CSV contract
+## What the import does
 
-The first row must contain `first_name,last_name,email,phone,birth_date,country` in any order. Spaces and hyphens in header names are accepted. Files must be UTF-8, comma-separated, at most 2 MB and contain no more than 1000 customer rows. `phone` and `birth_date` may be empty. Dates use `YYYY-MM-DD`; birth dates cannot be in the future. Email is required, normalized to lowercase, and must be unique across the file and database.
+1. Uploads a CSV of up to 2 MB and 1,000 customer rows to private local storage.
+2. Previews every row with validation errors and counts; preview does not write customers to the database.
+3. On confirmation, reads and validates the staged file again, saves valid rows and reports total, imported and skipped counts. Canceling, replacing or completing an import deletes its staged file.
 
-The upload is kept in private local storage. Preview validates every row without saving customers. Confirmation reads and validates the staged file again, inserts valid rows, and reports total, imported and failed counts. Invalid rows are skipped. A database unique index and `insertOrIgnore` handle a competing import that inserts the same email between preview and confirmation.
+The header must contain these six columns, in any order:
 
-## Decisions and limits
+```text
+first_name,last_name,email,phone,birth_date,country
+```
 
-- This is a single-operator exercise, so there is no account system. Add authentication and authorization before exposing it beyond a trusted local environment.
-- Duplicate email detection is included; history, queue processing and progress reporting are outside this small submission.
-- A staged file is removed after import, cancellation or replacement. Abandoned uploads have no timed cleanup job yet.
-- Preview uses row numbers as CSV record numbers. Quoted line breaks inside a field are supported by the parser, but the displayed number does not represent the physical text line in that case.
+The parser accepts UTF-8 CSV with an optional BOM and comma-separated fields. Header spaces and hyphens are normalized to underscores. `phone` and `birth_date` can be empty; other fields are required. Birth dates use `YYYY-MM-DD` and cannot be in the future. Emails are lowercased and checked against both the file and existing customers. A database unique index and `insertOrIgnore` protect against a duplicate inserted between preview and confirmation.
 
 ## Verify
 
@@ -39,6 +49,8 @@ php artisan test --filter=CustomerImportTest
 npm run build
 ```
 
-The feature tests cover preview without persistence, duplicate and invalid row skipping, malformed headers, and confirmation without a staged file.
+The feature tests cover preview without persistence, invalid and duplicate rows, malformed headers, reuse of an email from an invalid row, and confirmation without a staged upload.
 
-Desktop and mobile screenshots of the preview and completion states are in `docs/screenshots/`.
+## Scope
+
+This is a single-operator exercise with no authentication. It should run only in a trusted local environment until access control is added. Imports run synchronously; there is no job queue, history or progress tracking. Abandoned staged files have no timed cleanup. Displayed row numbers count CSV records, so a quoted line break within a field does not change the displayed number.
