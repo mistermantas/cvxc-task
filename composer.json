@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/blank-vue-starter-kit",
+    "name": "rv-transport/customer-import",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "RV Transport CSV customer import challenge.",
     "keywords": [
         "laravel",
         "framework"
